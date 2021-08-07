@@ -12,6 +12,8 @@ URL_TEMPLATE = 'http://storage.googleapis.com/books/ngrams/books/{}'
 
 FILE_TEMPLATE = 'googlebooks-{lang}-all-{ngram_len}gram-{version}-{index}.gz'
 
+NEW_FILE_TEMPLATE = '20200217/{lang}/{ngram_len}-{index:05d}-of-{total:05d}.gz'
+
 
 Record = collections.namedtuple('Record', 'ngram year match_count volume_count')
 
@@ -24,7 +26,8 @@ class StreamInterruptionError(Exception):
         self.message = message
 
 
-def readline_google_store(ngram_len, lang='eng', indices=None, chunk_size=1024 ** 2, verbose=False):
+def readline_google_store(ngram_len,
+        lang='eng', indices=None, chunk_size=1024 ** 2, version='20170701', verbose=False):
     """Iterate over the data in the Google ngram collectioin.
 
         :param int ngram_len: the length of ngrams to be streamed.
@@ -37,7 +40,8 @@ def readline_google_store(ngram_len, lang='eng', indices=None, chunk_size=1024 *
 
     """
 
-    for fname, url, request in iter_google_store(ngram_len, verbose=verbose, lang=lang, indices=indices):
+    for fname, url, request in iter_google_store(ngram_len, verbose=verbose, lang=lang,
+            indices=indices, version=version):
         dec = zlib.decompressobj(32 + zlib.MAX_WBITS)
 
         def lines():
@@ -101,7 +105,7 @@ def count_coccurrence(records, index):
     return counter
 
 
-def iter_google_store(ngram_len, lang="eng", indices=None, verbose=False):
+def iter_google_store(ngram_len, lang="eng", indices=None, verbose=False, version='20120701'):
     """Iterate over the collection files stored at Google.
 
     :param int ngram_len: the length of ngrams to be streamed.
@@ -110,17 +114,22 @@ def iter_google_store(ngram_len, lang="eng", indices=None, verbose=False):
     :param bool verbose: if `True`, then the debug information is shown to `sys.stderr`.
 
     """
-    version = '20120701'
     session = requests.Session()
 
-    indices = get_indices(ngram_len) if indices is None else indices
+    indices = get_indices(ngram_len, version) if indices is None else indices
+
+    template = NEW_FILE_TEMPLATE if version == '20200217' else FILE_TEMPLATE
+
+    if version == '20200217':
+        total = [24, 589, 6881, 6668, 19423][ngram_len - 1]
 
     for index in indices:
-        fname = FILE_TEMPLATE.format(
+        fname = template.format(
             lang=lang,
             ngram_len=ngram_len,
             version=version,
             index=index,
+            total=total,
         )
 
         url = URL_TEMPLATE.format(fname)
@@ -143,7 +152,7 @@ def iter_google_store(ngram_len, lang="eng", indices=None, verbose=False):
             sys.stderr.write('\n')
 
 
-def get_indices(ngram_len):
+def get_indices(ngram_len, version):
     """Generate the file indeces depening on the ngram length, based on version 20120701.
 
     For 1grams it is::
@@ -191,6 +200,10 @@ def get_indices(ngram_len):
     more details.
 
     """
+    if version == '20200217':
+        total = { 1: 24, 2: 589, 3: 6881, 4: 6668, 5: 19423 }[ngram_len]
+        return range(total)
+
     other_indices = ('other', 'punctuation')
 
     if ngram_len == 1:

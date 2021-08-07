@@ -17,19 +17,22 @@ command = dispatcher.command
 @command()
 def download(
     ngram_len=('n', 1, 'The length of ngrams to be downloaded.'),
-    output=('o', 'downloads/google_ngrams/{ngram_len}', 'The destination folder for downloaded files.'),
+    output=('o', 'downloads/{version}/{language}/{ngram_len}', 'The destination folder for downloaded files.'),
     verbose=('v', False, 'Be verbose.'),
     lang=(
         'l',
         'eng',
         'Language. [eng|eng-us|eng-gb|eng-fiction|chi-sim|fre|ger|heb|ita|rus|spa]',
     ),
+    version=('u', '20120701', 'Version.  Can be 20200217.'),
 ):
     """Download The Google Books Ngram Viewer dataset version 20120701."""
-    output = local(output.format(ngram_len=ngram_len))
+    output = local(output.format(ngram_len=ngram_len, version=version, language=lang))
     output.ensure_dir()
 
-    for fname, url, request in iter_google_store(ngram_len, verbose=verbose, lang=lang):
+    for fname, url, request in iter_google_store(ngram_len, verbose=verbose, lang=lang, version=version):
+
+        fname = os.path.basename(fname)
 
         if os.path.isfile(output.join(fname)):
             server_length = int(request.raw.headers['Content-Length'])
